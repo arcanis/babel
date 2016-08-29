@@ -1,7 +1,12 @@
 "use strict";
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
+Object.defineProperties(exports, {
+  __esModule: {
+    value: true
+  },
+  __esExports: {
+    value: ["test", "a", "c", "e", "f"]
+  }
 });
 var test = exports.test = 2;
 exports.test = test = 5;

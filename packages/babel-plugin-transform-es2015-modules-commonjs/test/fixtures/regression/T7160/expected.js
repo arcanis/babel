@@ -1,7 +1,12 @@
 "use strict";
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
+Object.defineProperties(exports, {
+  __esModule: {
+    value: true
+  },
+  __esExports: {
+    value: ["foo", "bar"]
+  }
 });
 var foo = exports.foo = function foo(gen) {
   var ctx = arguments.length <= 1 || arguments[1] === undefined ? null : arguments[1];
