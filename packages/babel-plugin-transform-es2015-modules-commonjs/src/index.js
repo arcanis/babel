@@ -9,8 +9,13 @@ let buildRequire = template(`
 `);
 
 let buildExportsModuleDeclaration = template(`
-  Object.defineProperty(exports, "__esModule", {
-    value: true
+  Object.defineProperties(exports, {
+    __esModule: {
+      value: true
+    },
+    __esExports: {
+      value: $0
+    }
   });
 `);
 
@@ -25,6 +30,7 @@ let buildExportsFrom = template(`
 
 let buildLooseExportsModuleDeclaration = template(`
   exports.__esModule = true;
+  exports.__esExports = $0;
 `);
 
 let buildExportsAssignment = template(`
@@ -34,6 +40,7 @@ let buildExportsAssignment = template(`
 let buildExportAll = template(`
   Object.keys(OBJECT).forEach(function (key) {
     if (key === "default" || key === "__esModule") return;
+    if (exports.__esExports.indexOf(key) !== -1) return;
     Object.defineProperty(exports, key, {
       enumerable: true,
       get: function () {
@@ -163,6 +170,7 @@ export default function () {
           let imports = Object.create(null);
           let exports = Object.create(null);
 
+          let exportNames = Object.create(null);
           let nonHoistedExportNames = Object.create(null);
 
           let topNodes = [];
@@ -285,6 +293,7 @@ export default function () {
                   addTo(exports, id.name, id);
                   topNodes.push(buildExportsAssignment(id, id));
                   path.replaceWith(declaration.node);
+                  exportNames[id.name] = true;
                 } else if (declaration.isClassDeclaration()) {
                   let id = declaration.node.id;
                   addTo(exports, id.name, id);
@@ -293,6 +302,7 @@ export default function () {
                     buildExportsAssignment(id, id)
                   ]);
                   nonHoistedExportNames[id.name] = true;
+                  exportNames[id.name] = true;
                 } else if (declaration.isVariableDeclaration()) {
                   let declarators = declaration.get("declarations");
                   for (let decl of declarators) {
@@ -305,6 +315,7 @@ export default function () {
                       addTo(exports, id.node.name, id.node);
                       init.replaceWith(buildExportsAssignment(id.node, init.node).expression);
                       nonHoistedExportNames[id.node.name] = true;
+                      exportNames[id.node.name] = true;
                     } else {
                       // todo
                     }
@@ -331,6 +342,9 @@ export default function () {
                     } else {
                       topNodes.push(buildExportsFrom(t.stringLiteral(specifier.node.exported.name), t.memberExpression(ref, specifier.node.local)));
                     }
+                    if (specifier.node.exported.name !== "default") {
+                      exportNames[specifier.node.exported.name] = true;
+                    }
                     nonHoistedExportNames[specifier.node.exported.name] = true;
                   }
                 }
@@ -338,8 +352,11 @@ export default function () {
                 for (let specifier of specifiers) {
                   if (specifier.isExportSpecifier()) {
                     addTo(exports, specifier.node.local.name, specifier.node.exported);
-                    nonHoistedExportNames[specifier.node.exported.name] = true;
                     nodes.push(buildExportsAssignment(specifier.node.exported, specifier.node.local));
+                    if (specifier.node.exported.name !== "default") {
+                      exportNames[specifier.node.exported.name] = true;
+                    }
+                    nonHoistedExportNames[specifier.node.exported.name] = true;
                   }
                 }
               }
@@ -439,14 +456,16 @@ export default function () {
           }
 
           // add __esModule declaration if this file has any exports
-          if (hasExports && !strict) {
+          if (hasExports) {
             let buildTemplate = buildExportsModuleDeclaration;
             if (this.opts.loose) buildTemplate = buildLooseExportsModuleDeclaration;
 
-            const declar = buildTemplate();
+            const declar = buildTemplate(t.arrayExpression(Object.keys(exportNames).map(function (name) {
+              return t.stringLiteral(name);
+            })));
             declar._blockHoist = 3;
 
-            topNodes.unshift(declar);
+            topNodes = [].concat(declar).concat(topNodes);
           }
 
           path.unshiftContainer("body", topNodes);
